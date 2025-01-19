@@ -4,6 +4,7 @@ import urllib
 from collections import namedtuple
 from datetime import datetime, timedelta
 from math import log10
+import subprocess
 
 from peewee import JOIN, fn
 
@@ -415,6 +416,25 @@ class V4SecurityScanner(SecurityScannerInterface):
                 )
             )
 
+            # try fetching the manifest with a docker client prior asking clair to fetch the individual 
+            # layers. At the moment I have no clue what the manifest represents here in the code 
+            try:
+                # we need an authorization file here that grants access to the various namespace/repos
+                sk_out, sk_err = subprocess.Popen([
+                                    "skopeo", 
+                                    "copy", 
+                                        "--authfile=/tmp/auth.json",
+                                        "--all", 
+                                        "--src-tls-verify=false", 
+                                        "--dest-tls-verify=false",
+                                        "docker://127.0.0.1:8080/" +
+                                        f"{candidate.repository.namespace_user}/" + 
+                                        f"{candidate.repository.name}@" +
+                                        f"{manifest.digest}",
+                                        "oci-archive://dev/null"], stdout=PIPE, stderr=PIPE)
+            except Exception as skoperr:
+                logger.exception(f"failed fetching manifest prior asking clair to fetch it {skoperr}")
+                continue
             try:
                 (report, state) = self._secscan_api.index(manifest, layers)
             except InvalidContentSent as ex:
