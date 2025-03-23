@@ -1027,29 +1027,18 @@ def has_users():
     """
     Return false if no users in database yet
     """
-    return bool(User.select().limit(1))
+    return bool(User.select(organization=True).limit(1))
 
 
-@web.route("/api/v1/user/initialize", methods=["POST"])
-@route_show_if(features.USER_INITIALIZE)
+@web.route("/api/v1/automation/initialize", methods=["POST"])
 def user_initialize():
     """
-    Create initial user in an empty database
+    Create initial superuser organization with token in an empty database
     """
 
-    # Ensure that we are using database auth.
-    if not features.USER_INITIALIZE:
-        response = jsonify({"message": "Cannot initialize user, FEATURE_USER_INITIALIZE is False"})
-        response.status_code = 400
-        return response
-
-    # Ensure that we are using database auth.
-    if app.config["AUTHENTICATION_TYPE"] != "Database":
-        response = jsonify({"message": "Cannot initialize user in a non-database auth system"})
-        response.status_code = 400
-        return response
-
-    if has_users():
+    # do not re-initialize if it has already been initialized
+    # unless FEATURE USER_INITIALIZE is set, than create another superuser Org token
+    if all([has_users(), not features.USER_INITIALIZE]):
         response = jsonify({"message": "Cannot initialize user in a non-empty database"})
         response.status_code = 400
         return response
@@ -1057,45 +1046,37 @@ def user_initialize():
     user_data = request.get_json()
     try:
         prompts = model.user.get_default_user_prompts(features)
-        new_user = model.user.create_user(
+        new_user = model.user.create_user_noverify(
             user_data["username"],
-            user_data["password"],
-            user_data.get("email"),
-            auto_verify=True,
-            email_required=features.MAILING,
+            None,
+            False,
             is_possible_abuser=False,
             prompts=prompts,
         )
-        success, headers = common_login(new_user.uuid)
-        if not success:
-            response = jsonify({"message": "Could not login. Failed to initialize user"})
-            response.status_code = 403
-            return response
+        new_user.organization = True
+        new_user.save()
 
-        result = {
-            "username": user_data["username"],
-            "email": user_data.get("email"),
-            "encrypted_password": authentication.encrypt_user_password(
-                user_data["password"]
-            ).decode("ascii"),
-        }
+        model.oauth.create_application(
+            new_user,
+            "automation",
+            "",
+            "",
+            client_id=user_data["username"],
+            description="Application token generated via /api/v1/automation/initialize",
+        )
+        scope = (
+            "org:admin repo:admin repo:create repo:read repo:write super:user user:admin user:read"
+        )
+        created, access_token = model.oauth.create_user_access_token(
+            new_user,
+            user_data["username"],
+            scope,
+            user_data.get("access_token", None),
+            expires_in=86400 * 365 * 100,
+        )
+        result = {"access_token": access_token}
 
-        if user_data.get("access_token"):
-            model.oauth.create_application(
-                new_user,
-                "automation",
-                "",
-                "",
-                client_id=user_data["username"],
-                description="Application token generated via /api/v1/user/initialize",
-            )
-            scope = "org:admin repo:admin repo:create repo:read repo:write super:user user:admin user:read"
-            created, access_token = model.oauth.create_user_access_token(
-                new_user, user_data["username"], scope
-            )
-            result["access_token"] = access_token
-
-        return (result, 200, headers)
+        return (result, 200)
     except model.user.DataModelException as ex:
         response = jsonify({"message": "Failed to initialize user: " + str(ex)})
         response.status_code = 400
