@@ -1025,7 +1025,7 @@ def redirect_to_namespace(namespace):
 
 def has_users():
     """
-    Return false if no users in database yet
+    Return false if no organization in database yet
     """
     return bool(User.select(organization=True).limit(1))
 
@@ -1036,9 +1036,8 @@ def user_initialize():
     Create initial superuser organization with token in an empty database
     """
 
-    # do not re-initialize if it has already been initialized
-    # unless FEATURE USER_INITIALIZE is set, than create another superuser Org token
-    if all([has_users(), not features.USER_INITIALIZE]):
+    # do not initialize if it has already any organization configured
+    if has_users():
         response = jsonify({"message": "Cannot initialize user in a non-empty database"})
         response.status_code = 400
         return response
