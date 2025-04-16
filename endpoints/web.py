@@ -1059,7 +1059,7 @@ def user_initialize():
     user_data = request.get_json()
     # do this check first as it's less expensive than the config and DB lookup which are next
     if not user_data.get("username", False):
-        app.logger.info(
+        logger.info(
             f"Cannot initialize automation with recieved user_data does not contain a username"
         )
         # return unauthorized following best-practice in security
@@ -1067,8 +1067,13 @@ def user_initialize():
 
     # beyond this point it is safe to use the dict reference for username instead of the dict.get
     # do not initialize if config does not have AUTOMATION_USERS: [xx,xxx,xx]
-    if not user_data["username"] in app.config.get("AUTOMATION_USERS", []):
-        app.logger.info(
+    if not all(
+        [
+            user_data["username"] in app.config.get("AUTOMATION_USERS", []),
+            user_data["username"] in app.config.get("SUPER_USERS", []),
+        ]
+    ):
+        logger.info(
             f"Cannot initialize automation with {user_data['username']}, user not in AUTOMATION_USERS"
         )
         # return unauthorized following best-practice in security
@@ -1076,9 +1081,7 @@ def user_initialize():
 
     # do not initialize if it has already any organization configured
     if has_users(user_data["username"]):
-        app.logger.info(
-            f"Cannot initialize automation with {user_data['username']}, already exists"
-        )
+        logger.info(f"Cannot initialize automation with {user_data['username']}, already exists")
         # return unauthorized following best-practice in security
         abort(401)
 
@@ -1116,7 +1119,7 @@ def user_initialize():
 
         return (result, 200)
     except model.user.DataModelException as ex:
-        app.logger.info(f"Failed to initialize automation for {user_data['username']}: {ex}")
+        logger.info(f"Failed to initialize automation for {user_data['username']}: {ex}")
         abort(401)
 
 
