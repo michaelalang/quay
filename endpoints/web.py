@@ -1040,6 +1040,16 @@ def has_users(name):
     )
 
 
+@web.route("/api/v1/user/initialize", methods=["POST"])
+@route_show_if(features.USER_INITIALIZE)
+def user_initialize():
+    """
+    Create initial user in an empty database
+    """
+
+    return ("Deprecated API endpoint, use /api/v1/automation/initialize instead", 200)
+
+
 @web.route("/api/v1/automation/initialize", methods=["POST"])
 def user_initialize():
     """
