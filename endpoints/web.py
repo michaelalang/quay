@@ -1023,11 +1023,21 @@ def redirect_to_namespace(namespace):
         return redirect(url_for("web.user_view", path=namespace))
 
 
-def has_users():
+def has_users(name):
     """
-    Return false if no organization in database yet
+    Return false if no organization or user in database yet
+    summing bools like [True, True, False] sum up with their corresponding int
+    representation, therefor we want [False, False] which equals 0
     """
-    return bool(User.select(organization=True).limit(1))
+    return (
+        sum(
+            [
+                bool(User.select(name=name, organization=True).limit(1)),
+                bool(User.select(name=name).limit(1)),
+            ]
+        )
+        != 0
+    )
 
 
 @web.route("/api/v1/automation/initialize", methods=["POST"])
@@ -1036,13 +1046,32 @@ def user_initialize():
     Create initial superuser organization with token in an empty database
     """
 
-    # do not initialize if it has already any organization configured
-    if has_users():
-        response = jsonify({"message": "Cannot initialize user in a non-empty database"})
-        response.status_code = 400
-        return response
-
     user_data = request.get_json()
+    # do this check first as it's less expensive than the config and DB lookup which are next
+    if not user_data.get("username", False):
+        app.logger.info(
+            f"Cannot initialize automation with recieved user_data does not contain a username"
+        )
+        # return unauthorized following best-practice in security
+        abort(401)
+
+    # beyond this point it is safe to use the dict reference for username instead of the dict.get
+    # do not initialize if config does not have AUTOMATION_USERS: [xx,xxx,xx]
+    if not user_data["username"] in app.config.get("AUTOMATION_USERS", []):
+        app.logger.info(
+            f"Cannot initialize automation with {user_data['username']}, user not in AUTOMATION_USERS"
+        )
+        # return unauthorized following best-practice in security
+        abort(401)
+
+    # do not initialize if it has already any organization configured
+    if has_users(user_data["username"]):
+        app.logger.info(
+            f"Cannot initialize automation with {user_data['username']}, already exists"
+        )
+        # return unauthorized following best-practice in security
+        abort(401)
+
     try:
         prompts = model.user.get_default_user_prompts(features)
         new_user = model.user.create_user_noverify(
@@ -1077,9 +1106,8 @@ def user_initialize():
 
         return (result, 200)
     except model.user.DataModelException as ex:
-        response = jsonify({"message": "Failed to initialize user: " + str(ex)})
-        response.status_code = 400
-        return response
+        app.logger.info(f"Failed to initialize automation for {user_data['username']}: {ex}")
+        abort(401)
 
 
 @web.route("/config", methods=["GET", "OPTIONS"])
