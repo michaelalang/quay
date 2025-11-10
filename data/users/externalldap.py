@@ -66,7 +66,7 @@ class LDAPConnectionBuilder(object):
             span.set_status(StatusCode.OK)
             span.set_attribute("ldap.referrals", str(self._referrals))
             span.set_attribute("ldap.allow_tls_fallback", self._allow_tls_fallback)
-            span.set_attribute("ldap.timeout", self._timeout)
+            span.set_attribute("ldap.timeout", self._network_timeout or _DEFAULT_NETWORK_TIMEOUT)
             return LDAPConnection(
                 self._ldap_uri,
                 self._user_dn,
