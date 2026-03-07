@@ -73,7 +73,15 @@ def init_logging(app_config, log_exporter_factory=None):
 
     logger_provider = LoggerProvider(resource=resource)
     set_logger_provider(logger_provider)
+    import requests
+    import urllib3
 
+    # Optional but recommended: Suppress the console warnings that 'requests' throws when SSL is disabled
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    # 1. Create a custom session and disable TLS/SSL verification
+    insecure_session = requests.Session()
+    insecure_session.verify = False
     if DT_API_URL is not None and DT_API_TOKEN is not None:
         exporter_instance = (log_exporter_factory or OTLPLogExporter)(
             endpoint=DT_API_URL + "/v1/logs",
@@ -81,6 +89,7 @@ def init_logging(app_config, log_exporter_factory=None):
                 "Authorization": "Api-Token " + DT_API_TOKEN,
                 "Tenant-Id": otel_config.get("OTEL_EXPORTER_OTLP_HEADERS", {}).get("Tenant-Id"),
             },
+            session=insecure_session
         )
         processor = BatchLogRecordProcessor(exporter_instance)
     else:

@@ -56,7 +56,7 @@ from util.ipresolver import IPResolver
 from util.label_validator import LabelValidator
 from util.log import filter_logs
 from util.marketplace import MarketplaceSubscriptionApi, MarketplaceUserApi
-from util.metrics.otel import init_exporter
+from util.metrics.otel import init_exporter, init_logging, get_otel_logging_handler
 from util.metrics.prometheus import PrometheusPlugin
 from util.names import urn_generator
 from util.pullmetrics import PullMetricsBuilderModule
@@ -77,6 +77,7 @@ INIT_SCRIPTS_LOCATION = "/conf/init/"
 app = Flask(__name__)
 
 logger = logging.getLogger(__name__)
+logger.addHandler(get_otel_logging_handler())
 
 # Instantiate the configuration.
 is_testing = IS_TESTING
