@@ -376,3 +376,5 @@ if features.OTEL_TRACING:
     )
     Psycopg2Instrumentor().instrument()
     init_exporter(app.config)
+    init_logging(app.config)
+
