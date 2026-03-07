@@ -61,6 +61,11 @@ def init_exporter(app_config, span_exporter_factory=None):
     trace.set_tracer_provider(tracerProvider)
 
 
+class ModuleAttributeFilter(logging.Filter):
+    def filter(self, record):
+        record.quay_worker = record.name 
+        return True
+
 def init_logging(app_config, log_exporter_factory=None):
     otel_config = app_config.get("OTEL_CONFIG", {})
 
